@@ -1,4 +1,4 @@
 .env
 pdfs/
 env/
-
+app_for_local.py

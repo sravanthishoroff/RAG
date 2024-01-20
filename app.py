@@ -1,102 +1,72 @@
+import os
 import streamlit as st
-from dotenv import load_dotenv
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain.chains.question_answering import load_qa_chain
-from htmlTemplates import css, bot_template, user_template
-import traceback
+from openai import OpenAI
+import PyPDF2
 
-# Include the source PDF name in the text chunks
-def get_text_chunks_with_source(pdf_docs):
-    chunks = []
-    source_map = {}
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        pdf_name = pdf.name
-        for page_number, page in enumerate(pdf_reader.pages):
-            text = page.extract_text()
-            if text:
-                chunk_id = f"{pdf_name}_page_{page_number}"
-                chunks.append(text)
-                source_map[chunk_id] = pdf_name
-    return chunks, source_map
+client = OpenAI()
 
-def  get_vectorstore(text_chunks):
-    embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-    return vectorstore
+# Set your OpenAI API key
+OpenAI.api_key = os.environ["OPENAI_API_KEY"]
 
-def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI()
-    memory = ConversationBufferMemory(
-        memory_key='chat_history', return_messages=True)
-    conversation_chain = load_qa_chain(
-        llm=llm,
-        retriever=vectorstore.as_retriever(),
-        memory=memory
+# Function to extract text from PDF
+def extract_text_from_pdf(pdf_path):
+    text = ""
+    with open(pdf_path, 'rb') as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+        for page_num in range(len(pdf_reader.pages)):
+            text += pdf_reader.pages[page_num].extract_text()
+    return text
+
+# Function to get the answer using OpenAI API
+def get_openai_answer(question, context):
+    response = client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=f"Question: {question}\nContext: {context}\nAnswer:",
+        temperature=0.5,
+        max_tokens=100,
+        n=1,
+        stop=None,
     )
-    return conversation_chain
+    return response.choices[0].text.strip()
 
-# Error handling function
-def handle_error():
-    error_message = traceback.format_exc()
-    st.error("An error occurred: \n" + error_message)
-
-def handle_userinput(user_question, source_map):
-    try:
-        response = st.session_state.conversation({'question': user_question})
-        st.session_state.chat_history = response['chat_history']
-
-        for i, message in enumerate(st.session_state.chat_history):
-            display_message = message.content
-            if i % 2 != 0 and message.source in source_map:  # Bot response with source
-                source_pdf = source_map[message.source]
-                display_message += f" ([Source PDF]({source_pdf}))"
-
-            if i % 2 == 0:  # User message
-                st.write(user_template.replace("{{MSG}}", display_message), unsafe_allow_html=True)
-            else:  # Bot message
-                st.write(bot_template.replace("{{MSG}}", display_message), unsafe_allow_html=True)
-    except Exception:
-        handle_error()
-
+# Streamlit app
 def main():
-    load_dotenv()
-    st.set_page_config(page_title="Chat with multiple PDFs", page_icon=":books:")
-    st.write(css, unsafe_allow_html=True)
+    st.title("Document QA System")
 
-    if "conversation" not in st.session_state:
-        st.session_state.conversation = None
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = None
+    # User input
+    user_question = st.text_input("Ask a question:")
 
-    st.header("Chat with multiple PDFs :books:")
-    user_question = st.text_input("Ask a question about your documents:")
-    submit_question = st.button("Submit Question")
+    if st.button("Get Answer"):
+        # Select PDF folder
+        pdf_folder = "C:\\Users\\Sravanthi\\Desktop\\Use-Cases\\GenAI\\RAG\\pdfs"
 
-    source_map = {}  # Initialize source_map here
+        # Get a list of PDF files in the folder
+        pdf_files = [f for f in os.listdir(pdf_folder) if f.endswith('.pdf')]
 
-    with st.sidebar:
-        st.subheader("Your documents")
-        pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        process_docs = st.button("Process Documents")
+        # Initialize variables to store the best answer and its source PDF
+        best_answer = ""
+        best_pdf_path = ""
 
-        if process_docs:
-            with st.spinner("Processing..."):
-                try:
-                    text_chunks, source_map = get_text_chunks_with_source(pdf_docs)  # Update source_map
-                    vectorstore = get_vectorstore(text_chunks)
-                    st.session_state.conversation = get_conversation_chain(vectorstore)
-                except Exception:
-                    handle_error()
+        # Iterate through each PDF in the folder
+        for pdf_file in pdf_files:
+            pdf_path = os.path.join(pdf_folder, pdf_file)
 
-    if submit_question and user_question and st.session_state.conversation:
-        handle_userinput(user_question, source_map)
+            # Extract text from the PDF
+            pdf_text = extract_text_from_pdf(pdf_path)
 
+            # Get the answer from OpenAI
+            answer = get_openai_answer(user_question, pdf_text)
 
-if __name__ == '__main__':
+            # If the answer is better than the current best, update the variables
+            if len(answer) > len(best_answer):
+                best_answer = answer
+                best_pdf_path = pdf_path
+
+        # Display the best answer and its source PDF
+        st.subheader("Best Answer:")
+        st.write(best_answer)
+        st.subheader("Source PDF:")
+        st.write(best_pdf_path)
+
+if __name__ == "__main__":
     main()
