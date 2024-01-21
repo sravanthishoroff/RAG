@@ -1,4 +1,4 @@
-# Document QA System with OpenAI GPT-3.5 Turbo and PyPDF2
+# Document QA System with OpenAI 
 
 This project demonstrates a Document Question-Answering System using OpenAI GPT-3.5 Turbo and PyPDF2. It allows users to ask questions, and the system finds the best answer from a collection of PDF documents.
 
@@ -24,7 +24,7 @@ This project demonstrates a Document Question-Answering System using OpenAI GPT-
 - Set up OpenAI API key:
     Set your OpenAI API key as an environment variable. You can export it in your terminal or set it directly in your script.
     ```bash
-        export OPENAI_API_KEY=your_openai_api_key_here
+    export OPENAI_API_KEY=your_openai_api_key_here
     ```
 ## Usage
 - Run the Streamlit app
