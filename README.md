@@ -14,7 +14,7 @@ This project demonstrates a Document Question-Answering System using OpenAI GPT-
 - Clone the repository:
 
    ```bash
-   git clone https://github.com/sravanthi.shoroff/RAG.git
+   git clone https://github.com/sravanthishoroff/RAG.git
    cd RAG
   ```
 - Install dependencies:
